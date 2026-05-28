@@ -1,9 +1,11 @@
+from xml.parsers.expat import model
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 import os
 from dotenv import load_dotenv
-from google import genai
+import google.generativeai as genai
 
 load_dotenv()
 
@@ -17,7 +19,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Initialize Gemini Client
 try:
-    client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+    genai.configure(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 except Exception as e:
     print(f"Error initializing Gemini client in Flask: {e}")
     client = None
@@ -131,10 +133,9 @@ def crop_recommendation():
 
         # 3. Request recommendation from Gemini
         try:
-            response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt
-            )
+            model = genai.GenerativeModel("gemini-1.5-flash")
+
+            response = model.generate_content(prompt)
 
             recommendation_text = response.text
 
