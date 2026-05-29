@@ -1,6 +1,5 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
 import io
 import os
 import asyncio
