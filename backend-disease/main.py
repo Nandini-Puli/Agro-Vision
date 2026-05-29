@@ -74,12 +74,11 @@ async def predict(file: UploadFile = File(...)):
             return {
                 "status": "error",
                 "message": f"No disease detected: {data}"
-          }
+            }
 
         disease = max(predictions, key=predictions.get)
 
         confidence = round(predictions[disease] * 100, 2)
-
         crop_type = disease.split(" ")[0]
 
         return {
