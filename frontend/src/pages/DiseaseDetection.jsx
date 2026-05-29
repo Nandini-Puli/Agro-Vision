@@ -185,13 +185,18 @@ export default function DiseaseDetection() {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error("Prediction API unavailable.");
+          throw new Error("Prediction API unavailable.");
       }
 
+      console.log("API response status:", response.status);
+
       const result = await response.json();
+
+      console.log("Prediction result:", result);
       
-      if (result.status === 'error') {
-        throw new Error("Prediction failed.");
+      if (!result || result.status === 'error') {
+          console.log("Backend error:", result);
+          throw new Error(result?.message || "Prediction failed");
       }
 
       setScanProgress(100);
@@ -236,8 +241,8 @@ export default function DiseaseDetection() {
     } catch (e) {
       console.error(e);
       setErrorMsg(e.name === 'AbortError'
-        ? "Prediction timed out. The AI server may still be loading the model."
-        : "Prediction failed. The AI server might be offline.");
+        ? "Prediction timed out. Render free server is sleeping."
+        : e.message || "Prediction failed.");
     } finally {
       clearTimeout(timeoutId);
       clearInterval(interval);
