@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
 import io
 import os
 import asyncio
@@ -52,37 +53,33 @@ async def health_check():
 async def predict(file: UploadFile = File(...)):
     try:
         image_bytes = await file.read()
-
         api_key = "MiCrWvf28TKtaEKw6ouY"
         model_id = "plantdoc-disease-classification/1"
 
-        url = f"https://detect.roboflow.com/{model_id}?api_key={api_key}"
+        url = f"https://classify.roboflow.com/{model_id}?api_key={api_key}"
 
         response = requests.post(
             url,
-            files={"file": image_bytes}
-        )
+            files={
+                "file": ("image.jpg", image_bytes, "image/jpeg")
+           }
+       )
 
         data = response.json()
 
-        predictions = data.get("predictions", [])
+        print("ROBOFLOW RESPONSE:", data)
+
+        predictions = data.get("predictions", {})
 
         if not predictions:
             return {
                 "status": "error",
-                "message": "No disease detected"
-        }
+                "message": f"No disease detected: {data}"
+          }
 
-        top = max(predictions, key=lambda x: x.get("confidence", 0))
+        disease = max(predictions, key=predictions.get)
 
-        disease = top.get("class", "Unknown Disease")
-        confidence = round(top.get("confidence", 0) * 100, 2)
-
-        if confidence < 40:
-            return {
-                "status": "error",
-                "message": "Prediction confidence too low"
-            }
+        confidence = round(predictions[disease] * 100, 2)
 
         crop_type = disease.split(" ")[0]
 
@@ -97,8 +94,7 @@ async def predict(file: UploadFile = File(...)):
         return {
             "status": "error",
             "message": str(e)
-        }
-    
+       }
 @app.post("/treatment")
 async def get_treatment(req: TreatmentRequest):
     if not client:
