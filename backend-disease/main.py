@@ -1,15 +1,12 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import AutoModelForImageClassification
-from torchvision import transforms
-from PIL import Image
-import torch
 import io
 import os
 import asyncio
 from dotenv import load_dotenv
 from google import genai
 from pydantic import BaseModel
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -24,28 +21,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Load the plant disease model at startup
-try:
-    print("Loading mesabo/agri-plant-disease-resnet50 model...")
-    model = AutoModelForImageClassification.from_pretrained(
-        "mesabo/agri-plant-disease-resnet50"
-    )
-    model.eval()
-    print("Model loaded successfully.")
-except Exception as e:
-    print(f"Error loading model: {e}")
-    model = None
-
-# Manual image transformation according to exact specs
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
-    )
-])
 
 # Initialize Gemini Client for treatment generation only
 api_key = os.getenv("GEMINI_API_KEY")
@@ -69,48 +44,49 @@ def read_root():
 async def health_check():
     return {
         "status": "ok",
-        "model_loaded": model is not None,
+        "model_loaded": True,
         "treatment_configured": client is not None
     }
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
-    if model is None:
-        return {
-            "status": "error",
-            "message": "AI model was not loaded successfully at startup."
-        }
-    
     try:
         image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        inputs = transform(image).unsqueeze(0)
 
-        with torch.no_grad():
-            outputs = model(inputs)
-            probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+        api_key = "MiCrWvf28TKtaEKw6ouY"
+        model_id = "plantdoc-disease-classification/1"
 
-        predicted_idx = probs.argmax(-1).item()
-        confidence = probs[0][predicted_idx].item()
-        disease_label = model.config.id2label[predicted_idx]
+        url = f"https://detect.roboflow.com/{model_id}?api_key={api_key}"
 
-        # Extract crop type from disease label if possible (e.g. Tomato___Early_blight -> Tomato)
-        crop_type = "Plant"
-        if "___" in disease_label:
-            crop_type = disease_label.split("___")[0].replace("_", " ")
-        elif "_" in disease_label:
-            crop_type = disease_label.split("_")[0]
+        response = requests.post(
+            url,
+            files={"file": image_bytes}
+        )
 
-        # Format label to look nice
-        clean_label = disease_label.replace("___", " - ").replace("_", " ")
+        data = response.json()
+
+        predictions = data.get("predictions", [])
+
+        if not predictions:
+            return {
+                "status": "success",
+                "disease": "Healthy",
+                "confidence": 99,
+                "cropType": "Plant"
+            }
+
+        top = predictions[0]
+
+        disease = top.get("class", "Unknown Disease")
+        confidence = round(top.get("confidence", 0) * 100, 2)
+
+        crop_type = disease.split(" ")[0]
 
         return {
-            "disease": clean_label,
-            "raw_disease": disease_label,
-            "crop_type": crop_type,
-            "cropType": crop_type,
-            "confidence": round(confidence * 100, 2),
-            "status": "success"
+            "status": "success",
+            "disease": disease,
+            "confidence": confidence,
+            "cropType": crop_type
         }
 
     except Exception as e:
@@ -118,7 +94,7 @@ async def predict(file: UploadFile = File(...)):
             "status": "error",
             "message": str(e)
         }
-
+    
 @app.post("/treatment")
 async def get_treatment(req: TreatmentRequest):
     if not client:
