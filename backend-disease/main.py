@@ -19,7 +19,7 @@ app = FastAPI(title="AgroVision Disease Detection API")
 # Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173","http://127.0.0.1:5173","https://agro-vision-rho.vercel.app"],
+    allow_origins=["http://localhost:5173","http://127.0.0.1:5173","https://agro-vision-qxu80ipan-nandinipuli3105-6758s-projects.vercel.app","https://agro-vision-rho.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
