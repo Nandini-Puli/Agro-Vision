@@ -69,16 +69,20 @@ async def predict(file: UploadFile = File(...)):
 
         if not predictions:
             return {
-                "status": "success",
-                "disease": "Healthy",
-                "confidence": 99,
-                "cropType": "Plant"
-            }
+                "status": "error",
+                "message": "No disease detected"
+        }
 
-        top = predictions[0]
+        top = max(predictions, key=lambda x: x.get("confidence", 0))
 
         disease = top.get("class", "Unknown Disease")
         confidence = round(top.get("confidence", 0) * 100, 2)
+
+        if confidence < 40:
+            return {
+                "status": "error",
+                "message": "Prediction confidence too low"
+            }
 
         crop_type = disease.split(" ")[0]
 
