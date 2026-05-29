@@ -53,7 +53,7 @@ async def predict(file: UploadFile = File(...)):
     try:
         image_bytes = await file.read()
         api_key = "MiCrWvf28TKtaEKw6ouY"
-        model_id = "plantdoc-disease-classification/1"
+        model_id = "nandini-puli/plant-disease-zcwgs/1"
 
         url = f"https://classify.roboflow.com/{model_id}?api_key={api_key}"
 
