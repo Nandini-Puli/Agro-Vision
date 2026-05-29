@@ -177,7 +177,7 @@ export default function DiseaseDetection() {
       const formData = new FormData();
       formData.append("file", selectedImage);
 
-      const response = await fetch("http://localhost:8000/predict", {
+      const response = await fetch("https://agro-vision-la3c.onrender.com/predict", {
         method: "POST",
         body: formData,
         signal: controller.signal
@@ -264,7 +264,7 @@ export default function DiseaseDetection() {
     const timeoutId = setTimeout(() => controller.abort(), 45000);
 
     try {
-      const response = await fetch('http://localhost:8000/treatment', {
+      const response = await fetch('https://agro-vision-la3c.onrender.com/treatment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ disease: scanResult.disease }),
