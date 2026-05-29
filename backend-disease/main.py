@@ -50,9 +50,7 @@ transform = transforms.Compose([
 # Initialize Gemini Client for treatment generation only
 api_key = os.getenv("GEMINI_API_KEY")
 gemini_models = [
-    os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
     "gemini-2.0-flash",
-    "gemini-1.5-flash",
 ]
 try:
     client = genai.Client(api_key=api_key) if api_key else None
