@@ -94,13 +94,16 @@ export default function CropRecommendation() {
   const fetchRecommendation = async (params) => {
     try {
       console.log("SENDING DATA:", params);
-      const response = await fetch("http://localhost:5000/crop-recommendation", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(params)
-      });
+      const response = await fetch(
+          "https://agro-vision-1a3c.onrender.com/crop-recommendation",
+       {
+           method: "POST",
+           headers: {
+                "Content-Type": "application/json"
+           },
+           body: JSON.stringify(params)
+       }
+      );
 
       if (!response.ok) {
         throw new Error("Crop recommendation backend is unavailable.");
