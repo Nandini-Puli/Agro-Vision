@@ -80,7 +80,7 @@ async def predict(file: UploadFile = File(...)):
         print("Image size:", image.size)
         print("Image mode:", image.mode)
         inputs = processor(
-            image,
+            images=image,
             return_tensors="pt"
         )
 
