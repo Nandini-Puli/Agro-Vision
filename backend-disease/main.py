@@ -1,17 +1,34 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from transformers import AutoImageProcessor
+from transformers import AutoModelForImageClassification
+from PIL import Image
+import torch
 import io
 import os
 import asyncio
 from dotenv import load_dotenv
 from google import genai
 from pydantic import BaseModel
-import requests
+
 
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(title="AgroVision Disease Detection API")
+print("Loading MobileNet Plant Disease Model...")
+
+processor = AutoImageProcessor.from_pretrained(
+"linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification"
+)
+
+model = AutoModelForImageClassification.from_pretrained(
+"linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification"
+)
+
+model.eval()
+
+print("Model loaded successfully")
 
 # Enable CORS for frontend integration
 app.add_middleware(
@@ -44,7 +61,7 @@ def read_root():
 async def health_check():
     return {
         "status": "ok",
-        "model_loaded": True,
+        "model_loaded": model is not None,
         "treatment_configured": client is not None
     }
 
@@ -52,34 +69,29 @@ async def health_check():
 async def predict(file: UploadFile = File(...)):
     try:
         image_bytes = await file.read()
-        api_key = "MiCrWvf28TKtaEKw6ouY"
-        model_id = "nandini-puli/plant-disease-zcwgs/1"
 
-        url = f"https://classify.roboflow.com/{model_id}?api_key={api_key}"
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-        response = requests.post(
-            url,
-            files={
-                "file": ("image.jpg", image_bytes, "image/jpeg")
-           }
-       )
+        inputs = processor(
+            images=[image],
+            return_tensors="pt"
+        )
 
-        data = response.json()
+        with torch.no_grad():
+            outputs = model(**inputs)
 
-        print("ROBOFLOW RESPONSE:", data)
+        predicted_idx = outputs.logits.argmax(-1).item()
 
-        predictions = data.get("predictions", {})
+        disease = model.config.id2label[predicted_idx]
 
-        if not predictions:
-            return {
-                "status": "error",
-                "message": f"No disease detected: {data}"
-            }
+        confidence = torch.nn.functional.softmax(
+            outputs.logits,
+            dim=-1
+        )[0][predicted_idx].item()
 
-        disease = max(predictions, key=predictions.get)
+        confidence = round(confidence * 100, 2)
 
-        confidence = round(predictions[disease] * 100, 2)
-        crop_type = disease.split(" ")[0]
+        crop_type = disease.split("_")[0]
 
         return {
             "status": "success",
@@ -87,6 +99,7 @@ async def predict(file: UploadFile = File(...)):
             "confidence": confidence,
             "cropType": crop_type
         }
+
 
     except Exception as e:
         return {
