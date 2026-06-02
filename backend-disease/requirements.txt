@@ -8,3 +8,4 @@ torchvision==0.17.1
 transformers==4.38.2
 pillow==10.2.0
 groq==1.4.0
+numpy==1.26.4

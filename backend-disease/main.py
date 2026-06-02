@@ -73,6 +73,7 @@ async def health_check():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    print("NEW VERSION DEPLOYED")
     try:
         image_bytes = await file.read()
 
