@@ -8,7 +8,10 @@ import io
 import os
 import asyncio
 from dotenv import load_dotenv
-from google import genai
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
 from pydantic import BaseModel
 
 
@@ -40,15 +43,17 @@ app.add_middleware(
 )
 
 # Initialize Gemini Client for treatment generation only
-api_key = os.getenv("GEMINI_API_KEY")
-gemini_models = [
-    "gemini-2.0-flash",
-]
-try:
-    client = genai.Client(api_key=api_key) if api_key else None
-except Exception as e:
-    print(f"Error initializing Gemini client: {e}")
-    client = None
+api_key = os.getenv("GROQ_API_KEY")
+
+client = None
+if Groq is not None and api_key:
+    try:
+        client = Groq(api_key=api_key)
+    except Exception as e:
+        print(f"Error initializing Groq client: {e}")
+else:
+    if api_key and Groq is None:
+        print("Groq package is not installed; treatment endpoint is disabled.")
 
 class TreatmentRequest(BaseModel):
     disease: str
@@ -72,8 +77,10 @@ async def predict(file: UploadFile = File(...)):
 
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         image = image.resize((224, 224))
+        print("Image size:", image.size)
+        print("Image mode:", image.mode)
         inputs = processor(
-            images=image,
+            image,
             return_tensors="pt"
         )
 
@@ -102,90 +109,82 @@ async def predict(file: UploadFile = File(...)):
 
 
     except Exception as e:
+        print("PREDICT ERROR:", repr(e))
         return {
             "status": "error",
             "message": str(e)
        }
 @app.post("/treatment")
 async def get_treatment(req: TreatmentRequest):
+
     if not client:
         return {
             "status": "error",
-            "message": "Gemini AI client is not configured or available."
+            "message": "Groq client is not configured."
         }
 
-    disease = req.disease.strip() if req.disease else ""
+    disease = req.disease.strip()
+
     if not disease:
         return {
             "status": "error",
-            "message": "Detected disease name is required."
+            "message": "Disease name is required."
         }
-    
+
+    prompt = f"""
+    You are an expert agricultural consultant.
+
+    Disease detected: {disease}
+
+    Provide:
+
+    Organic Treatment
+    Fertilizers & Nutrients
+    Pesticides / Fungicides
+    Watering Advice
+    Prevention Tips
+    Recovery Timeline
+
+    Keep the answer short, practical and farmer-friendly.
+    """
+
     try:
-        prompt = f"""
-        You are an expert plant pathologist and agricultural consultant AI.
-        The user's crop has been diagnosed with the disease: "{disease}".
-        
-        Suggest a highly effective treatment plan for this disease. 
-        Structure your response exactly with these headings:
-        - **Organic Treatment**: Natural remedies, biological controls, home remedies.
-        - **Fertilizers & Nutrients**: Recommended crop feeding adjustments to boost recovery.
-        - **Pesticides / Fungicides**: Chemical recommendations if organic treatments are insufficient.
-        - **Watering Advice**: Specific hydration instructions during plant recovery.
-        - **Prevention Tips**: Long-term field practices to avoid re-infection.
-        - **Recovery Timeline**: How long before visual improvements appear.
-        
-        Keep the explanation short, practical, easy to understand, and highly farmer-friendly.
-        """
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                client.chat.completions.create,
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.3
+            ),
+            timeout=40
+        )
 
-        response = None
-        last_error = None
-
-        for model_name in dict.fromkeys(gemini_models):
-            try:
-                response = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        client.models.generate_content,
-                        model=model_name,
-                        contents=prompt
-                    ),
-                    timeout=40
-                )
-                break
-            except Exception as model_error:
-                last_error = model_error
-
-        if response is None:
-            print(f"Gemini treatment generation failed: {last_error}")
-            return {
-                "status": "error",
-                "message": "Gemini treatment service is temporarily unavailable."
-            }
-
-        treatment = getattr(response, "text", None)
-        if not treatment or not treatment.strip():
-            return {
-                "status": "error",
-                "message": "Gemini returned an empty treatment response."
-            }
+        treatment = response.choices[0].message.content
 
         return {
+            "status": "success",
             "disease": disease,
-            "treatment": treatment.strip(),
-            "status": "success"
+            "treatment": treatment
         }
 
     except asyncio.TimeoutError:
         return {
             "status": "error",
-            "message": "Gemini treatment generation timed out."
+            "message": "Groq request timed out."
         }
+
     except Exception as e:
-        print(f"Treatment endpoint error: {e}")
+        print("Groq Error:", e)
         return {
             "status": "error",
-            "message": "Could not generate treatment recommendations right now."
+            "message": str(e)
         }
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -11,8 +11,6 @@ node_modules
 dist
 dist-ssr
 *.local
-__pycache__/
-*.pyc
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -24,5 +22,8 @@ __pycache__/
 *.sln
 *.sw?
 .env
+backend-disease/.env
 backend-crop/.env
 frontend/.env
+__pycache__/
+*.pyc
