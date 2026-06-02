@@ -9,6 +9,7 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from torchvision import transforms
+import requests
 try:
     from groq import Groq
 except ImportError:
@@ -58,6 +59,11 @@ else:
 
 class TreatmentRequest(BaseModel):
     disease: str
+
+class CropRecommendationRequest(BaseModel):
+    location: str | None = None
+    lat: float | None = None
+    lon: float | None = None    
 
 @app.get("/")
 def read_root():
@@ -185,6 +191,107 @@ async def get_treatment(req: TreatmentRequest):
             "status": "error",
             "message": str(e)
         }
+@app.post("/crop-recommendation")
+async def crop_recommendation(req: CropRecommendationRequest):
+
+    if not client:
+        return {
+            "status": "error",
+            "message": "Groq client is not configured."
+        }
+
+    OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+
+    if not OPENWEATHER_API_KEY:
+        return {
+            "status": "error",
+            "message": "OpenWeather API key missing."
+        }
+
+    try:
+
+        weather_url = "https://api.openweathermap.org/data/2.5/weather"
+
+        if req.lat is not None and req.lon is not None:
+            params = {
+                "lat": req.lat,
+                "lon": req.lon,
+                "appid": OPENWEATHER_API_KEY,
+                "units": "metric"
+            }
+        else:
+            params = {
+                "q": req.location,
+                "appid": OPENWEATHER_API_KEY,
+                "units": "metric"
+            }
+
+        response = requests.get(weather_url, params=params)
+
+        if response.status_code != 200:
+            return {
+                "status": "error",
+                "message": "Could not fetch weather data."
+            }
+
+        weather_data = response.json()
+
+        temperature = weather_data["main"]["temp"]
+        humidity = weather_data["main"]["humidity"]
+        condition = weather_data["weather"][0]["description"]
+        wind_speed = weather_data["wind"]["speed"]
+        location = weather_data["name"]
+
+        prompt = f"""
+        You are an agriculture expert.
+
+        Weather:
+        Temperature: {temperature}°C
+        Humidity: {humidity}%
+        Condition: {condition}
+        Wind Speed: {wind_speed} m/s
+        Location: {location}
+
+        Suggest:
+        1. Best crops
+        2. Why suitable
+        3. Water requirements
+        4. Farming risks
+
+        Keep answer short and farmer-friendly.
+        """
+
+        groq_response = await asyncio.to_thread(
+            client.chat.completions.create,
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.3
+        )
+
+        recommendation = groq_response.choices[0].message.content
+
+        return {
+            "status": "success",
+            "weather": {
+                "temperature": temperature,
+                "humidity": humidity,
+                "condition": condition,
+                "wind_speed": wind_speed,
+                "location": location
+            },
+            "recommendation": recommendation
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }    
 
 
 if __name__ == "__main__":

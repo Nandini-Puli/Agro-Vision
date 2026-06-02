@@ -23,7 +23,6 @@ dist-ssr
 *.sw?
 .env
 backend-disease/.env
-backend-crop/.env
 frontend/.env
 __pycache__/
 *.pyc
