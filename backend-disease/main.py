@@ -8,6 +8,7 @@ import io
 import os
 import asyncio
 from dotenv import load_dotenv
+from torchvision import transforms
 try:
     from groq import Groq
 except ImportError:
@@ -76,16 +77,15 @@ async def predict(file: UploadFile = File(...)):
         image_bytes = await file.read()
 
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        image = image.resize((224, 224))
-        print("Image size:", image.size)
-        print("Image mode:", image.mode)
-        inputs = processor(
-            images=image,
-            return_tensors="pt"
-        )
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            ])
+
+        image_tensor = transform(image).unsqueeze(0)
 
         with torch.no_grad():
-            outputs = model(**inputs)
+            outputs = model(pixel_values=image_tensor)
 
         predicted_idx = outputs.logits.argmax(-1).item()
 
