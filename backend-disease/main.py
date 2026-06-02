@@ -71,9 +71,9 @@ async def predict(file: UploadFile = File(...)):
         image_bytes = await file.read()
 
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
+        image = image.resize((224, 224))
         inputs = processor(
-            images=[image],
+            images=image,
             return_tensors="pt"
         )
 
