@@ -8,7 +8,6 @@ import io
 import os
 import asyncio
 from dotenv import load_dotenv
-from torchvision import transforms
 import requests
 try:
     from groq import Groq
@@ -77,6 +76,13 @@ async def health_check():
         "treatment_configured": client is not None
     }
 
+def format_label(label: str) -> str:
+    if not isinstance(label, str):
+        return str(label)
+    cleaned = label.replace('___', ' - ').replace('_', ' ')
+    return cleaned.title()
+
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     print("NEW VERSION DEPLOYED")
@@ -84,36 +90,51 @@ async def predict(file: UploadFile = File(...)):
         image_bytes = await file.read()
 
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            ])
+        print("Incoming image size:", image.size, "mode:", image.mode)
 
-        image_tensor = transform(image).unsqueeze(0)
+        inputs = processor(images=image, return_tensors="pt")
 
         with torch.no_grad():
-            outputs = model(pixel_values=image_tensor)
+            outputs = model(**inputs)
 
-        predicted_idx = outputs.logits.argmax(-1).item()
+        logits = outputs.logits
+        probs = torch.nn.functional.softmax(logits, dim=-1)[0]
 
-        disease = model.config.id2label[predicted_idx]
+        topk = torch.topk(probs, k=min(3, probs.shape[-1]))
+        top_indices = topk.indices.tolist()
+        top_probs = topk.values.tolist()
 
-        confidence = torch.nn.functional.softmax(
-            outputs.logits,
-            dim=-1
-        )[0][predicted_idx].item()
+        predicted_idx = top_indices[0]
+        disease = format_label(model.config.id2label[predicted_idx])
+        confidence = round(top_probs[0] * 100, 2)
 
-        confidence = round(confidence * 100, 2)
+        top_predictions = [
+            {
+                "index": int(idx),
+                "label": format_label(model.config.id2label[int(idx)]),
+                "confidence": round(float(prob) * 100, 2),
+            }
+            for idx, prob in zip(top_indices, top_probs)
+        ]
 
-        crop_type = disease.split("_")[0]
+        crop_type = disease.split(' - ')[0].split(' ')[0] if disease else 'Plant'
+
+        print("Predicted Index:", predicted_idx)
+        print("Predicted Class:", disease)
+        print("Confidence:", f"{confidence}%")
+        print("Model Labels Count:", len(model.config.id2label))
+        print("Sample Labels:", list(model.config.id2label.items())[:10])
+        print("Top Predictions:")
+        for rank, pred in enumerate(top_predictions, start=1):
+            print(f"{rank}. {pred['label']} - {pred['confidence']}%")
 
         return {
             "status": "success",
             "disease": disease,
             "confidence": confidence,
-            "cropType": crop_type
+            "cropType": crop_type,
+            "topPredictions": top_predictions,
         }
-
 
     except Exception as e:
         print("PREDICT ERROR:", repr(e))

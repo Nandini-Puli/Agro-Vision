@@ -193,7 +193,7 @@ export default function DiseaseDetection() {
       const result = await response.json();
 
       console.log("Prediction result:", result);
-      
+      console.log("FULL API RESPONSE:", result);
       if (!result || result.status === 'error') {
           console.log("Backend error:", result);
           throw new Error(result?.message || "Prediction failed");
@@ -202,7 +202,8 @@ export default function DiseaseDetection() {
       setScanProgress(100);
       setScanResult({
         ...result,
-        cropType: result.cropType || result.crop_type || inferCropType(result.disease)
+        cropType: result.cropType || result.crop_type || inferCropType(result.disease),
+        topPredictions: result.topPredictions || []
       });
       if (currentUser) {
   try {
@@ -648,6 +649,22 @@ export default function DiseaseDetection() {
                       }
                     </p>
                   </div>
+
+                  {scanResult.topPredictions && scanResult.topPredictions.length > 0 && (
+                    <div className="pt-4 border-t border-emerald-800/20">
+                      <span className="text-[10px] text-emerald-400 font-bold tracking-widest font-mono uppercase block mb-3">Top Predictions</span>
+                      <div className="space-y-3">
+                        {scanResult.topPredictions.map((prediction, index) => (
+                          <div key={prediction.index} className="flex items-center justify-between bg-emerald-950/20 border border-emerald-800/20 rounded-xl px-3 py-3">
+                            <div>
+                              <span className="text-xs text-gray-300 font-bold font-mono">{index + 1}. {prediction.label}</span>
+                            </div>
+                            <span className="text-xs font-bold text-emerald-400 font-mono">{prediction.confidence}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Action Treatment button */}
                   <div className="pt-2 flex justify-end">
