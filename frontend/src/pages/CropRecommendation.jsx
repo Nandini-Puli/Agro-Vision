@@ -81,33 +81,42 @@ export default function CropRecommendation() {
     }
   );
 };
+
   // Trigger city text search
   const handleCitySearch = async (e) => {
     e.preventDefault();
-    if (!location.trim()) {
+    const trimmedLocation = location.trim();
+    if (!trimmedLocation) {
       setErrorMsg("Please enter a valid city name.");
       return;
     }
+
+    // Validate city name before sending request: only letters, spaces, hyphens, and commas
+    const cityRegex = /^[a-zA-Z\s,\-]+$/;
+    if (!cityRegex.test(trimmedLocation)) {
+      setErrorMsg("Please enter a valid city name containing only letters, spaces, hyphens, or commas.");
+      return;
+    }
+
     setErrorMsg('');
     setLoading(true);
     setResult(null);
     await fetchRecommendation({
-  location: location.trim()
-  });
+      location: trimmedLocation
+    });
+  };
 
   const fetchRecommendation = async (params) => {
     try {
       console.log("SENDING DATA:", params);
-      const response = await fetch(
-          "https://agro-vision-1a3c.onrender.com/crop-recommendation",
-       {
-           method: "POST",
-           headers: {
-                "Content-Type": "application/json"
-           },
-           body: JSON.stringify(params)
-       }
-      );
+      const apiUrl = `${import.meta.env.VITE_API_URL || 'https://agro-vision-1a3c.onrender.com'}/crop-recommendation`;
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(params)
+      });
 
       if (!response.ok) {
         throw new Error("Crop recommendation backend is unavailable.");
@@ -115,34 +124,39 @@ export default function CropRecommendation() {
 
       const resData = await response.json();
       console.log("BACKEND RESPONSE:", resData);
+      
       if (resData.status === 'error') {
-        throw new Error("Recommendation failed.");
+        throw new Error(resData.message || "Recommendation failed.");
       }
 
       setResult(resData);
 
+      // Display actual detected city name in coordinates
+      if (resData.weather && resData.weather.location) {
+        setLocation(resData.weather.location);
+      }
+
       // Save recommendation log to Firestore
-      const dbRecord = {
+      if (currentUser && resData.weather) {
+        const dbRecord = {
           userId: currentUser.uid,
           timestamp: new Date().toISOString(),
           weather: {
-              temperature: resData.weather.temperature,
-              humidity: resData.weather.humidity,
-              rainfall: resData.weather.rainfall || 0,
-              condition: resData.weather.condition,
-              wind_speed: resData.weather.wind_speed,
-              location: resData.weather.location
+            temperature: resData.weather.temperature,
+            humidity: resData.weather.humidity,
+            rainfall: resData.weather.rainfall || 0,
+            condition: resData.weather.condition,
+            wind_speed: resData.weather.wind_speed,
+            location: resData.weather.location
           },
           recommendation: resData.recommendation
-      };
-
-      if (currentUser) {
+        };
         await addDoc(collection(db, 'history'), dbRecord);
       }
 
     } catch (e) {
       console.error(e);
-      setErrorMsg("Matching service busy. The Flask server might be offline.");
+      setErrorMsg(e.message || "Matching service busy. The Flask server might be offline.");
     } finally {
       setLoading(false);
     }
@@ -255,27 +269,27 @@ export default function CropRecommendation() {
                   <div className="bg-emerald-950/25 border border-emerald-800/20 p-3.5 rounded-xl text-center">
                     <Thermometer className="h-4 w-4 text-emerald-400 mx-auto mb-1" />
                     <span className="text-[10px] text-emerald-400/60 font-mono block uppercase">{t('temperature')}</span>
-                    <span className="text-sm font-bold font-mono text-white mt-0.5 block">{result.weather.temperature}</span>
+                    <span className="text-sm font-bold font-mono text-white mt-0.5 block">{result.weather.temperature}°C</span>
                   </div>
 
                   <div className="bg-emerald-950/25 border border-emerald-800/20 p-3.5 rounded-xl text-center">
                     <Droplet className="h-4 w-4 text-emerald-400 mx-auto mb-1" />
                     <span className="text-[10px] text-emerald-400/60 font-mono block uppercase">{t('humidity')}</span>
-                    <span className="text-sm font-bold font-mono text-white mt-0.5 block">{result.weather.humidity}</span>
+                    <span className="text-sm font-bold font-mono text-white mt-0.5 block">{result.weather.humidity}%</span>
                   </div>
 
                   <div className="bg-emerald-950/25 border border-emerald-800/20 p-3.5 rounded-xl text-center">
                     <Sprout className="h-4 w-4 text-emerald-400 mx-auto mb-1" />
                     <span className="text-[10px] text-emerald-400/60 font-mono block uppercase">{t('rainfall')}</span>
                     <span className="text-sm font-bold font-mono text-white mt-0.5 block truncate" title={result.weather.rainfall}>
-                      {result.weather.rainfall}
+                      {result.weather.rainfall} mm
                     </span>
                   </div>
 
                   <div className="bg-emerald-950/25 border border-emerald-800/20 p-3.5 rounded-xl text-center">
                     <Wind className="h-4 w-4 text-emerald-400 mx-auto mb-1" />
                     <span className="text-[10px] text-emerald-400/60 font-mono block uppercase">{t('windSpeed')}</span>
-                    <span className="text-sm font-bold font-mono text-white mt-0.5 block">{result.weather.wind_speed}</span>
+                    <span className="text-sm font-bold font-mono text-white mt-0.5 block">{result.weather.wind_speed} m/s</span>
                   </div>
                 </div>
               </div>
@@ -301,5 +315,4 @@ export default function CropRecommendation() {
 
     </div>
   );
-}
 }

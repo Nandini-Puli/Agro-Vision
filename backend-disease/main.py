@@ -193,52 +193,84 @@ async def get_treatment(req: TreatmentRequest):
         }
 @app.post("/crop-recommendation")
 async def crop_recommendation(req: CropRecommendationRequest):
-    location = req.location
-    print("LOCATION RECEIVED:", location)
+    # Detailed logging: received fields (using repr for encoding safety)
+    print("received city:", repr(req.location))
+    print("received latitude:", req.lat)
+    print("received longitude:", req.lon)
+
     if not client:
+        err_msg = "Groq client is not configured."
+        print("errors:", err_msg)
         return {
             "status": "error",
-            "message": "Groq client is not configured."
+            "message": err_msg
         }
 
     OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
-
     if not OPENWEATHER_API_KEY:
+        err_msg = "OpenWeather API key missing."
+        print("errors:", err_msg)
         return {
             "status": "error",
-            "message": "OpenWeather API key missing."
+            "message": err_msg
         }
 
     try:
-
         weather_url = "https://api.openweathermap.org/data/2.5/weather"
+        params = {"appid": OPENWEATHER_API_KEY, "units": "metric"}
 
+        # Use latitude/longitude if coordinates are available
         if req.lat is not None and req.lon is not None:
-            params = {
-                "lat": req.lat,
-                "lon": req.lon,
-                "appid": OPENWEATHER_API_KEY,
-                "units": "metric"
-            }
+            params["lat"] = req.lat
+            params["lon"] = req.lon
+        elif req.location:
+            # Trim extra spaces from input
+            trimmed_city = req.location.strip()
+            params["q"] = trimmed_city
         else:
-            params = {
-                "q": req.location,
-                "appid": OPENWEATHER_API_KEY,
-                "units": "metric"
+            err_msg = "Either location or lat/lon coordinates must be provided."
+            print("errors:", err_msg)
+            return {
+                "status": "error",
+                "message": err_msg
             }
 
         response = requests.get(weather_url, params=params)
 
+        # Fallback logic for Indian cities and towns if direct query fails with 404
+        if response.status_code == 404 and "q" in params and "," not in params["q"]:
+            fallback_city = f"{params['q']},IN"
+            print(f"City {repr(params['q'])} not found. Trying Indian city fallback: {repr(fallback_city)}")
+            fallback_params = params.copy()
+            fallback_params["q"] = fallback_city
+            fallback_response = requests.get(weather_url, params=fallback_params)
+            if fallback_response.status_code == 200:
+                response = fallback_response
+
+        # Detailed logging: OpenWeather response / status
         if response.status_code != 200:
-            print("OPENWEATHER STATUS:", response.status_code)
-            print("OPENWEATHER RESPONSE:", response.text)
+            print("errors: OpenWeather API returned status code", response.status_code)
+            print("OpenWeather response (error):", repr(response.text))
+            
+            if response.status_code == 404:
+                return {
+                    "status": "error",
+                    "message": f"City '{req.location}' not found. Please verify the spelling or try adding country code (e.g., 'Kaikaluru, IN')."
+                }
+            elif response.status_code == 401:
+                return {
+                    "status": "error",
+                    "message": "Invalid OpenWeather API Key. Please check backend environment configuration."
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"OpenWeather Error: {response.json().get('message', 'Could not fetch weather data.')}"
+                }
 
-            return {
-                "status": "error",
-                "message": "Could not fetch weather data."
-            }
-
+        import json
         weather_data = response.json()
+        print("OpenWeather response:", json.dumps(weather_data, ensure_ascii=True))
 
         temperature = weather_data["main"]["temp"]
         humidity = weather_data["main"]["humidity"]
@@ -296,6 +328,7 @@ async def crop_recommendation(req: CropRecommendationRequest):
         }
 
     except Exception as e:
+        print("errors in crop recommendation:", repr(e))
         return {
             "status": "error",
             "message": str(e)
