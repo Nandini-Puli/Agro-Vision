@@ -110,7 +110,7 @@ export default function CropRecommendation() {
       }
 
       const resData = await response.json();
-      
+      console.log("BACKEND RESPONSE:", resData);
       if (resData.status === 'error') {
         throw new Error("Recommendation failed.");
       }
@@ -119,17 +119,17 @@ export default function CropRecommendation() {
 
       // Save recommendation log to Firestore
       const dbRecord = {
-        userId: currentUser.uid,
-        timestamp: new Date().toISOString(),
-        weather: {
-          temperature: resData.weather.temperature,
-          humidity: resData.weather.humidity,
-          rainfall: resData.weather.rainfall,
-          condition: resData.weather.condition,
-          wind_speed: resData.weather.wind_speed,
-          location: resData.weather.location
-        },
-        recommendation: resData.recommendation
+          userId: currentUser.uid,
+          timestamp: new Date().toISOString(),
+          weather: {
+              temperature: resData.weather.temperature,
+              humidity: resData.weather.humidity,
+              rainfall: resData.weather.rainfall || 0,
+              condition: resData.weather.condition,
+              wind_speed: resData.weather.wind_speed,
+              location: resData.weather.location
+          },
+          recommendation: resData.recommendation
       };
 
       if (currentUser) {

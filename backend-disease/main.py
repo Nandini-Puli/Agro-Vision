@@ -242,6 +242,9 @@ async def crop_recommendation(req: CropRecommendationRequest):
         wind_speed = weather_data["wind"]["speed"]
         location = weather_data["name"]
 
+        rain_info = weather_data.get("rain", {})
+        rainfall = rain_info.get("1h", rain_info.get("3h", 0))
+
         prompt = f"""
         You are an agriculture expert.
 
@@ -280,6 +283,7 @@ async def crop_recommendation(req: CropRecommendationRequest):
             "weather": {
                 "temperature": temperature,
                 "humidity": humidity,
+                "rainfall": rainfall,
                 "condition": condition,
                 "wind_speed": wind_speed,
                 "location": location
