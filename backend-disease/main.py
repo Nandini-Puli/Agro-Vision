@@ -229,6 +229,9 @@ async def crop_recommendation(req: CropRecommendationRequest):
         response = requests.get(weather_url, params=params)
 
         if response.status_code != 200:
+            print("OPENWEATHER STATUS:", response.status_code)
+            print("OPENWEATHER RESPONSE:", response.text)
+
             return {
                 "status": "error",
                 "message": "Could not fetch weather data."
