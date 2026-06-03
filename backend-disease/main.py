@@ -193,7 +193,8 @@ async def get_treatment(req: TreatmentRequest):
         }
 @app.post("/crop-recommendation")
 async def crop_recommendation(req: CropRecommendationRequest):
-
+    location = req.location
+    print("LOCATION RECEIVED:", location)
     if not client:
         return {
             "status": "error",

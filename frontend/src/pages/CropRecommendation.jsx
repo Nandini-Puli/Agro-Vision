@@ -41,11 +41,15 @@ export default function CropRecommendation() {
   navigator.geolocation.getCurrentPosition(
     async (position) => {
       try {
+        console.log("FULL POSITION:", position);
+
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
 
         console.log("LAT:", latitude);
         console.log("LON:", longitude);
+
+        alert(`LAT: ${latitude}\nLON: ${longitude}`);
 
         await fetchRecommendation({
           lat: Number(latitude),
@@ -60,6 +64,7 @@ export default function CropRecommendation() {
     },
     (error) => {
       console.log(error);
+      alert("Location Error: " + error.message);
 
       setLoading(false);
 
@@ -76,7 +81,6 @@ export default function CropRecommendation() {
     }
   );
 };
-
   // Trigger city text search
   const handleCitySearch = async (e) => {
     e.preventDefault();
@@ -88,8 +92,8 @@ export default function CropRecommendation() {
     setLoading(true);
     setResult(null);
     await fetchRecommendation({
-  location: encodeURIComponent(location.trim())});
-  };
+  location: location.trim()
+  });
 
   const fetchRecommendation = async (params) => {
     try {
@@ -297,4 +301,5 @@ export default function CropRecommendation() {
 
     </div>
   );
+}
 }
