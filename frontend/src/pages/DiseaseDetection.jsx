@@ -205,39 +205,8 @@ export default function DiseaseDetection() {
         cropType: result.cropType || result.crop_type || inferCropType(result.disease),
         topPredictions: result.topPredictions || []
       });
-      if (currentUser) {
-  try {
-    let savedImageUrl = imagePreview;
 
-    // Upload image to Firebase Storage
-    const fileRef = ref(
-      storage,
-      `scans/${currentUser.uid}/${Date.now()}_${selectedImage.name}`
-    );
-
-    const snap = await uploadBytes(fileRef, selectedImage);
-
-    savedImageUrl = await getDownloadURL(snap.ref);
-
-    // Save history
-    await addDoc(collection(db, 'history'), {
-      userId: currentUser.uid,
-      timestamp: serverTimestamp(),
-      type: 'disease',
-      disease: result.disease,
-      confidence: result.confidence,
-      cropType:
-        result.cropType ||
-        result.crop_type ||
-        inferCropType(result.disease),
-      image: savedImageUrl,
-      treatment: '',
-    });
-
-  } catch (err) {
-    console.error('Firestore save failed:', err);
-  }
-}
+      await saveScanHistory(result);
 
     } catch (e) {
       console.error(e);
@@ -256,6 +225,50 @@ export default function DiseaseDetection() {
     if (label.includes(' - ')) return label.split(' - ')[0];
     if (label.includes('___')) return label.split('___')[0].replaceAll('_', ' ');
     return label.split(' ')[0] || 'Plant';
+  };
+
+  const saveScanHistory = async (result) => {
+    if (!result) return;
+    if (!currentUser) {
+      console.warn('History save skipped: no authenticated user.');
+      return;
+    }
+
+    console.log('History save started');
+
+    let savedImageUrl = imagePreview || '';
+    const finalCropType = result.cropType || result.crop_type || inferCropType(result.disease);
+
+    try {
+      if (selectedImage) {
+        try {
+          const fileRef = ref(
+            storage,
+            `scans/${currentUser.uid}/${Date.now()}_${selectedImage.name}`
+          );
+          const snap = await uploadBytes(fileRef, selectedImage);
+          savedImageUrl = await getDownloadURL(snap.ref);
+        } catch (uploadError) {
+          console.warn('History image upload failed; saving history without stored image.', uploadError);
+        }
+      }
+
+      const record = {
+        userId: currentUser.uid,
+        timestamp: serverTimestamp(),
+        type: 'disease',
+        disease: result.disease,
+        confidence: result.confidence,
+        cropType: finalCropType,
+        image: savedImageUrl,
+        treatment: '',
+      };
+
+      const docRef = await addDoc(collection(db, 'history'), record);
+      console.log('History save success', docRef.id, record);
+    } catch (err) {
+      console.error('History save failed', err);
+    }
   };
 
   // Fetch Treatment suggestions from Gemini API and save record in Firestore
