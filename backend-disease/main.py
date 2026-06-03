@@ -322,7 +322,9 @@ async def crop_recommendation(req: CropRecommendationRequest):
                 "rainfall": rainfall,
                 "condition": condition,
                 "wind_speed": wind_speed,
-                "location": location
+                "location": location,
+                "lat": weather_data.get("coord", {}).get("lat"),
+                "lon": weather_data.get("coord", {}).get("lon")
             },
             "recommendation": recommendation
         }

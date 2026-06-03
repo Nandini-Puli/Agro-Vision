@@ -28,59 +28,50 @@ export default function CropRecommendation() {
 
   // Trigger geo-location weather search
   const handleGeoLocationSearch = () => {
-  setErrorMsg('');
-  setLoading(true);
-  setResult(null);
+    setErrorMsg('');
+    setLoading(true);
+    setResult(null);
 
-  if (!navigator.geolocation) {
-    setLoading(false);
-    setErrorMsg("Geolocation is not supported.");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      try {
-        console.log("FULL POSITION:", position);
-
-        const latitude = position.coords.latitude;
-        const longitude = position.coords.longitude;
-
-        console.log("LAT:", latitude);
-        console.log("LON:", longitude);
-
-        alert(`LAT: ${latitude}\nLON: ${longitude}`);
-
-        await fetchRecommendation({
-          lat: Number(latitude),
-          lon: Number(longitude)
-        });
-
-      } catch (err) {
-        console.error(err);
-        setErrorMsg("Failed to fetch current location.");
-        setLoading(false);
-      }
-    },
-    (error) => {
-      console.log(error);
-      alert("Location Error: " + error.message);
-
+    if (!navigator.geolocation) {
       setLoading(false);
-
-      if (error.code === 1) {
-        setErrorMsg("Location permission denied.");
-      } else {
-        setErrorMsg("Could not detect location.");
-      }
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 0
+      setErrorMsg("Unable to detect precise location.");
+      return;
     }
-  );
-};
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          console.log("FULL POSITION:", position);
+
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+
+          console.log("latitude:", latitude);
+          console.log("longitude:", longitude);
+
+          await fetchRecommendation({
+            lat: Number(latitude),
+            lon: Number(longitude)
+          });
+
+        } catch (err) {
+          console.error(err);
+          setErrorMsg("Unable to detect precise location.");
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.log("Geolocation error:", error);
+        setLoading(false);
+        setErrorMsg("Unable to detect precise location.");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
+  };
 
   // Trigger city text search
   const handleCitySearch = async (e) => {
@@ -260,9 +251,16 @@ export default function CropRecommendation() {
             >
               {/* Weather info card */}
               <div className="glass-card rounded-2xl p-6">
-                <h3 className="text-xs font-bold text-emerald-400 font-mono tracking-widest uppercase mb-4 pb-2 border-b border-emerald-800/35 flex items-center">
-                  <CloudSun className="h-4.5 w-4.5 mr-2" />
-                  <span>Telemetry Report: {result.weather.location}</span>
+                <h3 className="text-xs font-bold text-emerald-400 font-mono tracking-widest uppercase mb-4 pb-2 border-b border-emerald-800/35 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="flex items-center">
+                    <CloudSun className="h-4.5 w-4.5 mr-2" />
+                    <span>Telemetry Report: {result.weather.location}</span>
+                  </span>
+                  {result.weather.lat !== undefined && result.weather.lon !== undefined && (
+                    <span className="text-[10px] text-gray-400 font-mono lowercase">
+                      coords: {Number(result.weather.lat).toFixed(4)}, {Number(result.weather.lon).toFixed(4)}
+                    </span>
+                  )}
                 </h3>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
